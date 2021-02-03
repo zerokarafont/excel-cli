@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "用于解析和处理Excel的命令行工具",
   "main": "index.js",
+  "bin": {
+    "sangfor": "./index.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,10 +16,13 @@
     "chalk": "^4.1.0",
     "cli-table3": "^0.6.0",
     "commander": "^7.0.0",
+    "cross-spawn": "^7.0.3",
     "didyoumean": "^1.2.1",
+    "lodash": "^4.17.20",
     "log-symbols": "^4.0.0",
     "node-xlsx": "^0.16.1",
     "ora": "^5.3.0",
+    "private-ip": "^2.1.1",
     "progress": "^2.0.3"
   }
 }
