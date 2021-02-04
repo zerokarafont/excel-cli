@@ -1,30 +1,31 @@
-const fs = require('fs')
-const _ = require('lodash')
-const xlsx = require('node-xlsx').default
-const isPrivateIP = require('private-ip')
-const Alphabet = require('./config')
-const ProgressBar = require('progress')
-const chalk = require('chalk')
-const ora = require('ora')
+const os = require("os");
+const fs = require("fs");
+const _ = require("lodash");
+const xlsx = require("node-xlsx").default;
+const isPrivateIP = require("private-ip");
+const Alphabet = require("./config");
+const ProgressBar = require("progress");
+const chalk = require("chalk");
+const ora = require("ora");
 
-const spinner = ora()
+const spinner = ora();
 
 const progress = (len) => {
-      const bar = new ProgressBar(
-        `${chalk.bgBlueBright("正在生成Excel:")} [:bar] :percent`,
-        {
-          complete: "=",
-          incomplete: " ",
-          width: 20,
-          total: len || 100,
-        }
-      );
+  const bar = new ProgressBar(
+    `${chalk.bgBlueBright("正在生成Excel:")} [:bar] :percent`,
+    {
+      complete: "=",
+      incomplete: " ",
+      width: 20,
+      total: len || 100,
+    }
+  );
 
-      return bar
-}
+  return bar;
+};
 
 /**
- * 一期: 抽出源IP， 目的IP， 目的端口， 匹配次数 
+ * 一期: 抽出源IP， 目的IP， 目的端口， 匹配次数
  * 二期：
  *      进一步筛选目的地址, 例如筛选出的目的地址是内网的
  *      适配不同厂商的访问控制日志格式
@@ -32,22 +33,30 @@ const progress = (len) => {
  * @param {string} path 本地文件路径
  */
 const parseExcel = (path) => {
-
   spinner.start(`${chalk.bgBlueBright("开始分析中...")}`);
 
   // 加载进度条
   const bar = progress();
 
-  bar.tick(10)
+  bar.tick(10);
 
-  const workSheetsFromFile = xlsx.parse(path);
+  let workSheetsFromFile;
+
+  try {
+    workSheetsFromFile = xlsx.parse(
+      fs.readFileSync(path)
+    );
+    // workSheetsFromFile = xlsx.parse(path);
+  }catch(e) {
+    console.log('readExcelError', e)
+  }
   // 跳过中文表头
   const data = workSheetsFromFile[0].data.slice(1);
 
-  bar.tick(80)
+  bar.tick(80);
 
   // 抽取N~Q列 即 [源地址, 源端口, 目的地址, 目的端口]
-  const head = ["服务(目的IP：目的port)", "访问频率", "去向(内网or外网)"];
+  const head = ["源IP", "目的IP", "目的端口", "访问频率", "去向(内网or外网)"];
   // const subHead = ['','源IP', '源端口', '目的IP', '目的端口']
   const needRow = [Alphabet["N"], Alphabet["O"], Alphabet["P"], Alphabet["Q"]];
   const extractData = data
@@ -64,11 +73,30 @@ const parseExcel = (path) => {
 
   const buildData = Object.keys(res).reduce(
     (data, key) => {
-      const destIP = key.split(":")[0];
+      const [destIP, destPort] = key.split(":");
+      const sourceIPList = res[key];
+
+      const sourceIPString = _.chain(sourceIPList)
+        .map((info) => {
+          // 源IP最后8位归零为一个C类网段
+          const sourceIP = info[0];
+          const arr = sourceIP.split(".");
+          arr.pop();
+          const network = arr.join("."); // 网络位
+          const host = 0; // 主机位
+          const mask = 24; // 子网掩码
+          return `${network}.${host}/${mask}`;
+        })
+        .uniq()
+        .value()
+        .join(",");
+
       return [
         ...data,
         [
-          key, // 服务
+          sourceIPString, // 源IP
+          destIP, // 目的IP
+          destPort, // 目的端口
           res[key].length, // 访问次数
           isPrivateIP(destIP) ? "内网" : "公网", // 公网 or 内网 IP
         ],
@@ -78,18 +106,24 @@ const parseExcel = (path) => {
   );
 
   // 按照访问频率由高到低排序
-  const sortData = _.orderBy(buildData, (item) => item[1], ["desc"]);
+  const sortData = _.orderBy(buildData, (item) => item[3], ["desc"]);
 
   const buffer = xlsx.build([{ name: "筛选表.xlsx", data: sortData }]);
 
   try {
-    fs.writeFileSync('防火墙日志分析.xlsx', buffer)
-    bar.tick(100)
+    let filename = "防火墙日志分析.xlsx";
+    // const platform = os.type();
+    // if (platform === "Linux" || platform === "Darwin")
+    //   filename = path.split("/").pop();
+    // filename = path.split("\\").pop();
+
+    fs.writeFileSync(filename, buffer);
+    bar.tick(100);
     spinner.succeed(`${chalk.bold.greenBright("成功生成Excel")}\n`);
-  }catch(err) {
-      spinner.stop(chalk.bold.red('生成Excel文件出错!'))
-      throw new Error(err)
+  } catch (err) {
+    spinner.stop(chalk.bold.red("生成Excel文件出错!"));
+    throw new Error(err);
   }
-}
+};
 
 module.exports = parseExcel;
