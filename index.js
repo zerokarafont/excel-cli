@@ -29,7 +29,7 @@ ${chalk.gray("–")} 查看帮助
 ${chalk.gray("–")} 用法
   ${chalk.cyan("sangfor excel -p")} ${chalk.magenta("<本地文件路径 支持直接将文件拖进命令行窗口>")}
 ${chalk.gray("–")} 用法事例
-  ${chalk.cyan("sangfor excel -p  /home/lin/文档/文物信息采集表.xlsx")}`;
+  ${chalk.cyan("sangfor excel -p  /home/tmp/测试.xlsx")}`;
     console.log(tips)
 })
 
